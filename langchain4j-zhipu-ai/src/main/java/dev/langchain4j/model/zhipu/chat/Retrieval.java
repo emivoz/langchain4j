@@ -1,22 +1,22 @@
 package dev.langchain4j.model.zhipu.chat;
 
-import com.google.gson.annotations.SerializedName;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.ToString;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
-@Getter
-@ToString
-@EqualsAndHashCode
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
+
+@JsonInclude(NON_NULL)
+@JsonNaming(SnakeCaseStrategy.class)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public final class Retrieval {
-    @SerializedName("knowledge_id")
     private final String knowledgeId;
-    @SerializedName("prompt_template")
     private final String promptTemplate;
 
-    Retrieval(RetrievalBuilder builder) {
-        this.knowledgeId = builder.knowledgeId;
-        this.promptTemplate = builder.promptTemplate;
+    public Retrieval(String knowledgeId, String promptTemplate) {
+        this.knowledgeId = knowledgeId;
+        this.promptTemplate = promptTemplate;
     }
 
     public static RetrievalBuilder builder() {
@@ -41,7 +41,8 @@ public final class Retrieval {
         }
 
         public Retrieval build() {
-            return new Retrieval(this);
+            return new Retrieval(this.knowledgeId, this.promptTemplate);
         }
+
     }
 }

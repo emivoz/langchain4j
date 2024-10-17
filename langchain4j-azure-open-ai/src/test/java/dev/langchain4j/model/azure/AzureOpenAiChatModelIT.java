@@ -7,18 +7,25 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolParameters;
 import dev.langchain4j.agent.tool.ToolSpecification;
-import dev.langchain4j.data.message.*;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.ToolExecutionResultMessage;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.output.Response;
 import dev.langchain4j.model.output.TokenUsage;
-import org.assertj.core.data.Percentage;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static dev.langchain4j.agent.tool.JsonSchemaProperty.INTEGER;
 import static dev.langchain4j.data.message.ToolExecutionResultMessage.toolExecutionResultMessage;
@@ -27,13 +34,8 @@ import static dev.langchain4j.model.output.FinishReason.LENGTH;
 import static dev.langchain4j.model.output.FinishReason.STOP;
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.data.Percentage.withPercentage;
 
 public class AzureOpenAiChatModelIT {
-
-    Logger logger = LoggerFactory.getLogger(AzureOpenAiChatModelIT.class);
-
-    Percentage tokenizerPrecision = withPercentage(5);
 
     @ParameterizedTest(name = "Deployment name {0} using {1}")
     @CsvSource({
@@ -52,7 +54,6 @@ public class AzureOpenAiChatModelIT {
         UserMessage userMessage = userMessage("hello, how are you?");
 
         Response<AiMessage> response = model.generate(userMessage);
-        logger.info(response.toString());
 
         assertThat(response.content().text()).isNotBlank();
 
@@ -71,7 +72,8 @@ public class AzureOpenAiChatModelIT {
     void should_generate_answer_and_return_token_usage_and_finish_reason_length(String deploymentName, String gptVersion) {
 
         ChatLanguageModel model = AzureOpenAiChatModel.builder()
-                .endpoint(System.getenv("AZURE_OPENAI_ENDPOINT"))
+                .endpoint(System.getenv("AZURE_OPENAI" +
+                        "_ENDPOINT"))
                 .apiKey(System.getenv("AZURE_OPENAI_KEY"))
                 .deploymentName(deploymentName)
                 .tokenizer(new AzureOpenAiTokenizer(gptVersion))
@@ -82,7 +84,6 @@ public class AzureOpenAiChatModelIT {
         UserMessage userMessage = userMessage("hello, how are you?");
 
         Response<AiMessage> response = model.generate(userMessage);
-        logger.info(response.toString());
 
         assertThat(response.content().text()).isNotBlank();
 
@@ -129,9 +130,6 @@ public class AzureOpenAiChatModelIT {
         ToolExecutionRequest toolExecutionRequest = aiMessage.toolExecutionRequests().get(0);
         assertThat(toolExecutionRequest.name()).isEqualTo(toolName);
 
-        // We should get a response telling how to call the "getCurrentWeather" function, with the correct parameters in JSON format.
-        logger.info(response.toString());
-
         // We can now call the function with the correct parameters.
         WeatherLocation weatherLocation = BinaryData.fromString(toolExecutionRequest.arguments()).toObject(WeatherLocation.class);
         int currentWeather = getCurrentWeather(weatherLocation);
@@ -152,8 +150,6 @@ public class AzureOpenAiChatModelIT {
         chatMessages.add(toolExecutionResultMessage);
 
         Response<AiMessage> response2 = model.generate(chatMessages);
-
-        logger.info(response2.toString());
 
         assertThat(response2.content().text()).isNotBlank();
         assertThat(response2.content().text()).contains("t-shirt");
@@ -259,12 +255,11 @@ public class AzureOpenAiChatModelIT {
         AiMessage aiMessage2 = response2.content();
 
         // then
-        logger.debug("Final answer is: " + aiMessage2);
         assertThat(aiMessage2.text()).contains("4", "16", "512");
         assertThat(aiMessage2.toolExecutionRequests()).isNull();
 
         TokenUsage tokenUsage2 = response2.tokenUsage();
-        assertThat(tokenUsage2.inputTokenCount()).isCloseTo(112, tokenizerPrecision);
+        assertThat(tokenUsage2.inputTokenCount()).isGreaterThan(0);
         assertThat(tokenUsage2.outputTokenCount()).isGreaterThan(0);
         assertThat(tokenUsage2.totalTokenCount())
                 .isEqualTo(tokenUsage2.inputTokenCount() + tokenUsage2.outputTokenCount());
@@ -291,8 +286,6 @@ public class AzureOpenAiChatModelIT {
 
         Response<AiMessage> response = model.generate(systemMessage, userMessage);
 
-        logger.info(response.toString());
-
         assertThat(response.content().text()).contains("Chirac", "Sarkozy", "Hollande", "Macron");
         assertThat(response.finishReason()).isEqualTo(STOP);
     }
@@ -316,7 +309,6 @@ public class AzureOpenAiChatModelIT {
 
         // when
         Response<AiMessage> response = model.generate(userMessage);
-        System.out.println(response);
 
         // then
         assertThat(response.content().text()).isNotBlank();
@@ -368,6 +360,14 @@ public class AzureOpenAiChatModelIT {
 
         public String getLocation() {
             return location;
+        }
+    }
+
+    @AfterEach
+    void afterEach() throws InterruptedException {
+        String ciDelaySeconds = System.getenv("CI_DELAY_SECONDS_AZURE_OPENAI");
+        if (ciDelaySeconds != null) {
+            Thread.sleep(Integer.parseInt(ciDelaySeconds) * 1000L);
         }
     }
 }

@@ -1,60 +1,98 @@
 package dev.langchain4j.model.zhipu.chat;
 
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.ToString;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
-@Getter
-@ToString
-@EqualsAndHashCode
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
+
+@JsonInclude(NON_NULL)
+@JsonNaming(SnakeCaseStrategy.class)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public final class ToolCall {
-    private final String id;
-    private final Integer index;
-    private final ToolType type;
-    private final FunctionCall function;
+    private String id;
+    private Integer index;
+    private ToolType type;
+    private FunctionCall function;
 
-    private ToolCall(Builder builder) {
-        this.id = builder.id;
-        this.index = builder.index;
-        this.type = builder.type;
-        this.function = builder.function;
+    public ToolCall() {
     }
 
-    public static Builder builder() {
-        return new Builder();
+    public ToolCall(String id, Integer index, ToolType type, FunctionCall function) {
+        this.id = id;
+        this.index = index;
+        this.type = type;
+        this.function = function;
     }
 
-    public static final class Builder {
+    public static ToolCallBuilder builder() {
+        return new ToolCallBuilder();
+    }
+
+    public String getId() {
+        return this.id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public Integer getIndex() {
+        return this.index;
+    }
+
+    public void setIndex(Integer index) {
+        this.index = index;
+    }
+
+    public ToolType getType() {
+        return this.type;
+    }
+
+    public void setType(ToolType type) {
+        this.type = type;
+    }
+
+    public FunctionCall getFunction() {
+        return this.function;
+    }
+
+    public void setFunction(FunctionCall function) {
+        this.function = function;
+    }
+
+    public static class ToolCallBuilder {
         private String id;
         private Integer index;
         private ToolType type;
         private FunctionCall function;
 
-        private Builder() {
+        ToolCallBuilder() {
         }
 
-        public Builder id(String id) {
+        public ToolCallBuilder id(String id) {
             this.id = id;
             return this;
         }
 
-        public Builder index(Integer index) {
+        public ToolCallBuilder index(Integer index) {
             this.index = index;
             return this;
         }
 
-        public Builder type(ToolType type) {
+        public ToolCallBuilder type(ToolType type) {
             this.type = type;
             return this;
         }
 
-        public Builder function(FunctionCall function) {
+        public ToolCallBuilder function(FunctionCall function) {
             this.function = function;
             return this;
         }
 
         public ToolCall build() {
-            return new ToolCall(this);
+            return new ToolCall(this.id, this.index, this.type, this.function);
         }
     }
 }

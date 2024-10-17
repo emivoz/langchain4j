@@ -1,33 +1,23 @@
 package dev.langchain4j.model.zhipu.embedding;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import dev.langchain4j.model.zhipu.shared.Usage;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.ToString;
 
 import java.util.List;
 
-import static java.util.Collections.unmodifiableList;
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
 
-@Getter
-@ToString
-@EqualsAndHashCode
+@JsonInclude(NON_NULL)
+@JsonNaming(SnakeCaseStrategy.class)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public final class EmbeddingResponse {
-    private final String model;
-    private final String object;
-    private final List<Embedding> data;
-    private final Usage usage;
-
-    private EmbeddingResponse(Builder builder) {
-        this.model = builder.model;
-        this.object = builder.object;
-        this.data = builder.data;
-        this.usage = builder.usage;
-    }
-
-    public static Builder builder() {
-        return new Builder();
-    }
+    private String model;
+    private String object;
+    private List<Embedding> data;
+    private Usage usage;
 
     /**
      * Convenience method to get the embedding from the first data.
@@ -36,40 +26,35 @@ public final class EmbeddingResponse {
         return data.get(0).getEmbedding();
     }
 
-    public static final class Builder {
+    public String getModel() {
+        return model;
+    }
 
-        private String model;
-        private String object;
-        private List<Embedding> data;
-        private Usage usage;
+    public void setModel(String model) {
+        this.model = model;
+    }
 
-        private Builder() {
-        }
+    public String getObject() {
+        return object;
+    }
 
-        public Builder model(String model) {
-            this.model = model;
-            return this;
-        }
+    public void setObject(String object) {
+        this.object = object;
+    }
 
-        public Builder object(String object) {
-            this.object = object;
-            return this;
-        }
+    public List<Embedding> getData() {
+        return data;
+    }
 
-        public Builder data(List<Embedding> data) {
-            if (data != null) {
-                this.data = unmodifiableList(data);
-            }
-            return this;
-        }
+    public void setData(List<Embedding> data) {
+        this.data = data;
+    }
 
-        public Builder usage(Usage usage) {
-            this.usage = usage;
-            return this;
-        }
+    public Usage getUsage() {
+        return usage;
+    }
 
-        public EmbeddingResponse build() {
-            return new EmbeddingResponse(this);
-        }
+    public void setUsage(Usage usage) {
+        this.usage = usage;
     }
 }

@@ -1,20 +1,22 @@
 package dev.langchain4j.model.zhipu.shared;
 
-import com.google.gson.annotations.SerializedName;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.ToString;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
-@Getter
-@ToString
-@EqualsAndHashCode
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
+
+@JsonInclude(NON_NULL)
+@JsonNaming(SnakeCaseStrategy.class)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public final class Usage {
-    @SerializedName("prompt_tokens")
     private Integer promptTokens;
-    @SerializedName("completion_tokens")
     private Integer completionTokens;
-    @SerializedName("total_tokens")
     private Integer totalTokens;
+
+    public Usage() {
+    }
 
     private Usage(Builder builder) {
         this.promptTokens = builder.promptTokens;
@@ -24,6 +26,30 @@ public final class Usage {
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    public Integer getPromptTokens() {
+        return promptTokens;
+    }
+
+    public void setPromptTokens(Integer promptTokens) {
+        this.promptTokens = promptTokens;
+    }
+
+    public Integer getCompletionTokens() {
+        return completionTokens;
+    }
+
+    public void setCompletionTokens(Integer completionTokens) {
+        this.completionTokens = completionTokens;
+    }
+
+    public Integer getTotalTokens() {
+        return totalTokens;
+    }
+
+    public void setTotalTokens(Integer totalTokens) {
+        this.totalTokens = totalTokens;
     }
 
     public void add(Usage usage) {

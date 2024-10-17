@@ -1,19 +1,11 @@
 package dev.langchain4j.model.vertexai;
 
-import com.google.cloud.aiplatform.v1beta1.ComputeTokensRequest;
-import com.google.cloud.aiplatform.v1beta1.ComputeTokensResponse;
-import com.google.cloud.aiplatform.v1beta1.EndpointName;
-import com.google.cloud.aiplatform.v1beta1.LlmUtilityServiceClient;
-import com.google.cloud.aiplatform.v1beta1.LlmUtilityServiceSettings;
-import com.google.cloud.aiplatform.v1beta1.PredictResponse;
-import com.google.cloud.aiplatform.v1beta1.PredictionServiceClient;
-import com.google.cloud.aiplatform.v1beta1.PredictionServiceSettings;
-import com.google.cloud.aiplatform.v1beta1.TokensInfo;
+import com.google.cloud.aiplatform.v1beta1.*;
 import com.google.protobuf.Value;
 import com.google.protobuf.util.JsonFormat;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
-import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.model.embedding.DimensionAwareEmbeddingModel;
 import dev.langchain4j.model.output.Response;
 import dev.langchain4j.model.output.TokenUsage;
 import dev.langchain4j.model.vertexai.spi.VertexAiEmbeddingModelBuilderFactory;
@@ -22,7 +14,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.google.cloud.aiplatform.util.ValueConverter.EMPTY_VALUE;
 import static dev.langchain4j.internal.Json.toJson;
 import static dev.langchain4j.internal.RetryUtils.withRetry;
 import static dev.langchain4j.internal.Utils.getOrDefault;
@@ -58,11 +49,14 @@ import static java.util.stream.Collectors.toList;
  * <br>
  * 3. <a href="https://github.com/googleapis/java-aiplatform?tab=readme-ov-file#prerequisites">Prerequisites</a>
  */
-public class VertexAiEmbeddingModel implements EmbeddingModel {
+public class VertexAiEmbeddingModel extends DimensionAwareEmbeddingModel {
 
-    private static final int COMPUTE_TOKENS_MAX_INPUTS_PER_REQUEST = 2048;
+    private static final String DEFAULT_GOOGLEAPIS_ENDPOINT_SUFFIX = "-aiplatform.googleapis.com:443";
+
+    private static final int COMPUTE_TOKENS_MAX_INPUTS_PER_REQUEST = 2_048;
     private static final int DEFAULT_MAX_SEGMENTS_PER_BATCH = 250;
     private static final int DEFAULT_MAX_TOKENS_PER_BATCH = 20_000;
+
     private final PredictionServiceSettings settings;
     private final LlmUtilityServiceSettings llmUtilitySettings;
     private final EndpointName endpointName;
@@ -71,9 +65,12 @@ public class VertexAiEmbeddingModel implements EmbeddingModel {
     private final Integer maxTokensPerBatch;
     private final TaskType taskType;
     private final String titleMetadataKey;
+    private final Integer outputDimensionality;
+    private final Boolean autoTruncate;
 
     public enum TaskType {
-        RETRIEVAL_QUERY, RETRIEVAL_DOCUMENT, SEMANTIC_SIMILARITY, CLASSIFICATION, CLUSTERING
+        RETRIEVAL_QUERY, RETRIEVAL_DOCUMENT, SEMANTIC_SIMILARITY, CLASSIFICATION,
+        CLUSTERING, QUESTION_ANSWERING, FACT_VERIFICATION, CODE_RETRIEVAL_QUERY
     }
 
     public VertexAiEmbeddingModel(String endpoint,
@@ -85,18 +82,23 @@ public class VertexAiEmbeddingModel implements EmbeddingModel {
                                   Integer maxSegmentsPerBatch,
                                   Integer maxTokensPerBatch,
                                   TaskType taskType,
-                                  String titleMetadataKey) {
+                                  String titleMetadataKey,
+                                  Integer outputDimensionality,
+                                  Boolean autoTruncate) {
+
+        String regionWithBaseAPI = endpoint != null ? endpoint :
+            ensureNotBlank(location, "location") + DEFAULT_GOOGLEAPIS_ENDPOINT_SUFFIX;
 
         this.endpointName = EndpointName.ofProjectLocationPublisherModelName(
-            ensureNotBlank(project, "project"),
-            ensureNotBlank(location, "location"),
-            ensureNotBlank(publisher, "publisher"),
-            ensureNotBlank(modelName, "modelName")
+                ensureNotBlank(project, "project"),
+                location,
+                ensureNotBlank(publisher, "publisher"),
+                ensureNotBlank(modelName, "modelName")
         );
 
         try {
             this.settings = PredictionServiceSettings.newBuilder()
-                    .setEndpoint(ensureNotBlank(endpoint, "endpoint"))
+                    .setEndpoint(regionWithBaseAPI)
                     .build();
 
             this.llmUtilitySettings = LlmUtilityServiceSettings.newBuilder()
@@ -109,12 +111,15 @@ public class VertexAiEmbeddingModel implements EmbeddingModel {
         this.maxRetries = getOrDefault(maxRetries, 3);
 
         this.maxSegmentsPerBatch = ensureGreaterThanZero(
-            getOrDefault(maxSegmentsPerBatch, DEFAULT_MAX_SEGMENTS_PER_BATCH), "maxSegmentsPerBatch");
+                getOrDefault(maxSegmentsPerBatch, DEFAULT_MAX_SEGMENTS_PER_BATCH), "maxSegmentsPerBatch");
         this.maxTokensPerBatch = ensureGreaterThanZero(
-            getOrDefault(maxTokensPerBatch, DEFAULT_MAX_TOKENS_PER_BATCH), "maxTokensPerBatch");
+                getOrDefault(maxTokensPerBatch, DEFAULT_MAX_TOKENS_PER_BATCH), "maxTokensPerBatch");
 
         this.taskType = taskType;
         this.titleMetadataKey = getOrDefault(titleMetadataKey, "title");
+
+        this.outputDimensionality = outputDimensionality;
+        this.autoTruncate = getOrDefault(autoTruncate, false);
     }
 
     @Override
@@ -139,7 +144,7 @@ public class VertexAiEmbeddingModel implements EmbeddingModel {
                         embeddingInstance.setTaskType(taskType);
                         if (this.taskType.equals(TaskType.RETRIEVAL_DOCUMENT)) {
                             // Title metadata is used for calculating embeddings for document retrieval
-                            embeddingInstance.setTitle(segment.metadata(titleMetadataKey));
+                            embeddingInstance.setTitle(segment.metadata().getString(titleMetadataKey));
                         }
                     }
 
@@ -148,7 +153,12 @@ public class VertexAiEmbeddingModel implements EmbeddingModel {
                     instances.add(instanceBuilder.build());
                 }
 
-                PredictResponse response = withRetry(() -> client.predict(endpointName, instances, EMPTY_VALUE), maxRetries);
+                VertexAiEmbeddingParameters parameters = new VertexAiEmbeddingParameters(
+                    outputDimensionality, getOrDefault(autoTruncate, false));
+                Value.Builder parameterBuilder = Value.newBuilder();
+                JsonFormat.parser().merge(toJson(parameters), parameterBuilder);
+
+                PredictResponse response = withRetry(() -> client.predict(endpointName, instances, parameterBuilder.build()), maxRetries);
 
                 embeddings.addAll(response.getPredictionsList().stream()
                         .map(VertexAiEmbeddingModel::toEmbedding)
@@ -172,7 +182,6 @@ public class VertexAiEmbeddingModel implements EmbeddingModel {
      * Calculates the number of tokens for each segment in the input list.
      *
      * @param segments a list of TextSegments
-     *
      * @return a list of tokens counts for each segment
      */
     public List<Integer> calculateTokensCounts(List<TextSegment> segments) {
@@ -182,7 +191,7 @@ public class VertexAiEmbeddingModel implements EmbeddingModel {
             // The computeTokens endpoint has a limit of up to 2048 input texts per request
             for (int i = 0; i < segments.size(); i += COMPUTE_TOKENS_MAX_INPUTS_PER_REQUEST) {
                 List<TextSegment> batch = segments.subList(i,
-                    Math.min(i + COMPUTE_TOKENS_MAX_INPUTS_PER_REQUEST, segments.size()));
+                        Math.min(i + COMPUTE_TOKENS_MAX_INPUTS_PER_REQUEST, segments.size()));
 
                 List<Value> instances = new ArrayList<>();
                 for (TextSegment segment : batch) {
@@ -192,17 +201,17 @@ public class VertexAiEmbeddingModel implements EmbeddingModel {
                 }
 
                 ComputeTokensRequest computeTokensRequest = ComputeTokensRequest.newBuilder()
-                    .setEndpoint(endpointName.toString())
-                    .addAllInstances(instances)
-                    .build();
+                        .setEndpoint(endpointName.toString())
+                        .addAllInstances(instances)
+                        .build();
 
                 ComputeTokensResponse computeTokensResponse = utilClient.computeTokens(computeTokensRequest);
 
                 tokensCounts.addAll(computeTokensResponse
-                    .getTokensInfoList()
-                    .stream()
-                    .map(TokensInfo::getTokensCount)
-                    .collect(toList()));
+                        .getTokensInfoList()
+                        .stream()
+                        .map(TokensInfo::getTokensCount)
+                        .collect(toList()));
             }
 
             return tokensCounts;
@@ -210,6 +219,11 @@ public class VertexAiEmbeddingModel implements EmbeddingModel {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    protected Integer knownDimension() {
+        return VertexAiEmbeddingModelName.knownDimension(endpointName.getModel());
     }
 
     private List<Integer> groupByBatches(List<Integer> tokensCounts) {
@@ -223,7 +237,7 @@ public class VertexAiEmbeddingModel implements EmbeddingModel {
         int currentBatchSum = 0;
         for (Integer tokensCount : tokensCounts) {
             if (currentBatchSum + tokensCount <= maxTokensPerBatch &&
-                currentBatch.size() < maxSegmentsPerBatch) {
+                    currentBatch.size() < maxSegmentsPerBatch) {
                 currentBatch.add(tokensCount);
                 currentBatchSum += tokensCount;
             } else {
@@ -240,9 +254,9 @@ public class VertexAiEmbeddingModel implements EmbeddingModel {
         // returns the list of number of text segments for each batch of embedding calculations
 
         return batches.stream()
-            .mapToInt(List::size)
-            .boxed()
-            .collect(toList());
+                .mapToInt(List::size)
+                .boxed()
+                .collect(toList());
     }
 
     private static Embedding toEmbedding(Value prediction) {
@@ -293,6 +307,8 @@ public class VertexAiEmbeddingModel implements EmbeddingModel {
         private Integer maxTokensPerBatch;
         private TaskType taskType;
         private String titleMetadataKey;
+        private Integer outputDimensionality;
+        private Boolean autoTruncate;
 
         public Builder endpoint(String endpoint) {
             this.endpoint = endpoint;
@@ -344,6 +360,16 @@ public class VertexAiEmbeddingModel implements EmbeddingModel {
             return this;
         }
 
+        public Builder autoTruncate(Boolean autoTruncate) {
+            this.autoTruncate = autoTruncate;
+            return this;
+        }
+
+        public Builder outputDimensionality(Integer outputDimensionality) {
+            this.outputDimensionality = outputDimensionality;
+            return this;
+        }
+
         public VertexAiEmbeddingModel build() {
             return new VertexAiEmbeddingModel(
                     endpoint,
@@ -355,7 +381,10 @@ public class VertexAiEmbeddingModel implements EmbeddingModel {
                     maxSegmentsPerBatch,
                     maxTokensPerBatch,
                     taskType,
-                    titleMetadataKey);
+                    titleMetadataKey,
+                    outputDimensionality,
+                    autoTruncate
+                );
         }
     }
 }

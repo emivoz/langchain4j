@@ -3,8 +3,11 @@ package dev.langchain4j.model.qianfan;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.*;
+import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.output.Response;
 import dev.langchain4j.model.output.TokenUsage;
+import dev.langchain4j.model.qianfan.client.QianfanApiException;
+import dev.langchain4j.model.qianfan.client.QianfanHttpException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
@@ -23,20 +26,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 class QianfanChatModelIT {
 
     //see your api key and secret key here: https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application
-    private String apiKey = System.getenv("QIANFAN_API_KEY");
-    private String secretKey = System.getenv("QIANFAN_SECRET_KEY");
+    private final String apiKey = System.getenv("QIANFAN_API_KEY");
+    private final String secretKey = System.getenv("QIANFAN_SECRET_KEY");
 
-    QianfanChatModel model = QianfanChatModel.builder().modelName("ERNIE-Bot 4.0").temperature(0.7).topP(1.0).maxRetries(1)
+    QianfanChatModel model = QianfanChatModel.builder()
+            .modelName("ERNIE-Bot 4.0")
+            .temperature(0.7)
+            .topP(1.0)
+            .maxRetries(1)
             .apiKey(apiKey)
             .secretKey(secretKey)
             .build();
+
     ToolSpecification calculator = ToolSpecification.builder()
             .name("calculator")
             .description("returns a sum of two numbers")
             .addParameter("first", INTEGER)
             .addParameter("second", INTEGER)
             .build();
-
 
     @Test
     void should_generate_answer_and_return_token_usage_and_finish_reason_stop() {
@@ -149,6 +156,22 @@ class QianfanChatModelIT {
 
         assertThat(response.content().text()).containsIgnoringCase("hello");
 
+    }
+
+    @Test
+    void should_throw_exception_when_api_has_error_code() {
+        ChatLanguageModel chatModel = QianfanChatModel.builder()
+                // Any other models that have not been activated yet.
+                .modelName("EB-turbo-AppBuilder")
+                .apiKey(apiKey)
+                .secretKey(secretKey)
+                .build();
+
+        try {
+            chatModel.generate(userMessage("Where is the capital of China"));
+        } catch (RuntimeException e) {
+          assertThat(e.getCause()).isInstanceOf(QianfanApiException.class);
+        }
     }
 
 }

@@ -1,20 +1,25 @@
 package dev.langchain4j.model.zhipu.chat;
 
-import com.google.gson.annotations.SerializedName;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.ToString;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 import java.util.Collections;
 import java.util.List;
 
-@Getter
-@ToString
-@EqualsAndHashCode
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
+
+
+@JsonInclude(NON_NULL)
+@JsonNaming(SnakeCaseStrategy.class)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public final class Delta {
-    private final String content;
-    @SerializedName("tool_calls")
-    private final List<ToolCall> toolCalls;
+    private String content;
+    private List<ToolCall> toolCalls;
+
+    public Delta() {
+    }
 
     private Delta(Builder builder) {
         this.content = builder.content;
@@ -23,6 +28,22 @@ public final class Delta {
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+
+    public List<ToolCall> getToolCalls() {
+        return toolCalls;
+    }
+
+    public void setToolCalls(List<ToolCall> toolCalls) {
+        this.toolCalls = toolCalls;
     }
 
     public static final class Builder {

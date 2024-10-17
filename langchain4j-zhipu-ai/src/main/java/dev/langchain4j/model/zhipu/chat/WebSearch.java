@@ -1,46 +1,32 @@
 package dev.langchain4j.model.zhipu.chat;
 
-import com.google.gson.annotations.SerializedName;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.ToString;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
-@Getter
-@ToString
-@EqualsAndHashCode
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
+
+@JsonInclude(NON_NULL)
+@JsonNaming(SnakeCaseStrategy.class)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public final class WebSearch {
-    private final Boolean enable;
-    @SerializedName("search_query")
-    private final String searchQuery;
+    private Boolean enable;
+    private String searchQuery;
 
-    public WebSearch(WebSearchBuilder builder) {
-        this.enable = builder.enable;
-        this.searchQuery = builder.searchQuery;
+    public Boolean getEnable() {
+        return enable;
     }
 
-    public static WebSearchBuilder builder() {
-        return new WebSearchBuilder();
+    public void setEnable(Boolean enable) {
+        this.enable = enable;
     }
 
-    public static class WebSearchBuilder {
-        private Boolean enable;
-        private String searchQuery;
+    public String getSearchQuery() {
+        return searchQuery;
+    }
 
-        WebSearchBuilder() {
-        }
-
-        public WebSearchBuilder enable(Boolean enable) {
-            this.enable = enable;
-            return this;
-        }
-
-        public WebSearchBuilder searchQuery(String searchQuery) {
-            this.searchQuery = searchQuery;
-            return this;
-        }
-
-        public WebSearch build() {
-            return new WebSearch(this);
-        }
+    public void setSearchQuery(String searchQuery) {
+        this.searchQuery = searchQuery;
     }
 }

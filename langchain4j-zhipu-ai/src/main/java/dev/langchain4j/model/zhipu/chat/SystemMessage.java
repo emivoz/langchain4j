@@ -1,24 +1,27 @@
 package dev.langchain4j.model.zhipu.chat;
 
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.ToString;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import dev.langchain4j.internal.Utils;
 
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
 import static dev.langchain4j.model.zhipu.chat.Role.SYSTEM;
 
-@ToString
-@EqualsAndHashCode
+@JsonInclude(NON_NULL)
+@JsonNaming(SnakeCaseStrategy.class)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public final class SystemMessage implements Message {
 
-    private final Role role = SYSTEM;
-    @Getter
-    private final String content;
-    @Getter
-    private final String name;
+    private Role role;
+    private String content;
+    private String name;
 
-    private SystemMessage(Builder builder) {
-        this.content = builder.content;
-        this.name = builder.name;
+    public SystemMessage(Role role, String content, String name) {
+        this.role = Utils.getOrDefault(role, SYSTEM);
+        this.content = content;
+        this.name = name;
     }
 
     public static SystemMessage from(String content) {
@@ -27,8 +30,8 @@ public final class SystemMessage implements Message {
                 .build();
     }
 
-    public static Builder builder() {
-        return new Builder();
+    public static SystemMessageBuilder builder() {
+        return new SystemMessageBuilder();
     }
 
     @Override
@@ -36,26 +39,51 @@ public final class SystemMessage implements Message {
         return role;
     }
 
-    public static final class Builder {
+    public void setRole(Role role) {
+        this.role = role;
+    }
 
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public static class SystemMessageBuilder {
+        private Role role;
         private String content;
         private String name;
 
-        private Builder() {
+        SystemMessageBuilder() {
         }
 
-        public Builder content(String content) {
+        public SystemMessageBuilder role(Role role) {
+            this.role = role;
+            return this;
+        }
+
+        public SystemMessageBuilder content(String content) {
             this.content = content;
             return this;
         }
 
-        public Builder name(String name) {
+        public SystemMessageBuilder name(String name) {
             this.name = name;
             return this;
         }
 
         public SystemMessage build() {
-            return new SystemMessage(this);
+            return new SystemMessage(this.role, this.content, this.name);
         }
     }
 }

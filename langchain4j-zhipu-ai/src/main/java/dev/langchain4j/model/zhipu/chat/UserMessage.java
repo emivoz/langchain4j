@@ -1,24 +1,34 @@
 package dev.langchain4j.model.zhipu.chat;
 
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.ToString;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import dev.langchain4j.internal.Utils;
 
+import java.util.Collections;
+import java.util.List;
+
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
 import static dev.langchain4j.model.zhipu.chat.Role.USER;
 
-@ToString
-@EqualsAndHashCode
+@JsonInclude(NON_NULL)
+@JsonNaming(SnakeCaseStrategy.class)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public final class UserMessage implements Message {
 
-    private final Role role = USER;
-    @Getter
-    private final String content;
-    @Getter
-    private final String name;
+    private Role role = USER;
+    private Object content;
+    private String name;
 
-    private UserMessage(Builder builder) {
-        this.content = builder.content;
-        this.name = builder.name;
+    public UserMessage(Role role, Object content, String name) {
+        this.role = Utils.getOrDefault(role, USER);
+        this.content = content;
+        this.name = name;
+    }
+
+    public static UserMessageBuilder builder() {
+        return new UserMessageBuilder();
     }
 
     public static UserMessage from(String text) {
@@ -27,8 +37,16 @@ public final class UserMessage implements Message {
                 .build();
     }
 
-    public static Builder builder() {
-        return new Builder();
+    public static UserMessage from(List<Content> contents) {
+        return UserMessage.builder()
+                .content(contents)
+                .build();
+    }
+
+    public static UserMessage from(Content... contents) {
+        return UserMessage.builder()
+                .content(Collections.singletonList(contents))
+                .build();
     }
 
     @Override
@@ -36,28 +54,51 @@ public final class UserMessage implements Message {
         return role;
     }
 
-    public static final class Builder {
+    public void setRole(Role role) {
+        this.role = role;
+    }
 
-        private String content;
+    public Object getContent() {
+        return content;
+    }
+
+    public void setContent(Object content) {
+        this.content = content;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public static class UserMessageBuilder {
+        private Role role;
+        private Object content;
         private String name;
 
-        private Builder() {
+        UserMessageBuilder() {
         }
 
-        public Builder content(String content) {
-            if (content != null) {
-                this.content = content;
-            }
+        public UserMessageBuilder role(Role role) {
+            this.role = role;
             return this;
         }
 
-        public Builder name(String name) {
+        public UserMessageBuilder content(Object content) {
+            this.content = content;
+            return this;
+        }
+
+        public UserMessageBuilder name(String name) {
             this.name = name;
             return this;
         }
 
         public UserMessage build() {
-            return new UserMessage(this);
+            return new UserMessage(this.role, this.content, this.name);
         }
     }
 }

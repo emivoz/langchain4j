@@ -6,7 +6,7 @@ import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.internal.Utils;
 import dev.langchain4j.model.dashscope.spi.QwenEmbeddingModelBuilderFactory;
-import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.model.embedding.DimensionAwareEmbeddingModel;
 import dev.langchain4j.model.output.Response;
 import dev.langchain4j.model.output.TokenUsage;
 import lombok.Builder;
@@ -20,10 +20,11 @@ import static dev.langchain4j.spi.ServiceHelper.loadFactories;
 import static java.util.Collections.singletonList;
 
 /**
- * An implementation of an {@link EmbeddingModel} that uses
+ * An implementation of an {@link dev.langchain4j.model.embedding.EmbeddingModel} that uses
  * <a href="https://help.aliyun.com/zh/dashscope/developer-reference/text-embedding-api-details">DashScope Embeddings API</a>.
  */
-public class QwenEmbeddingModel implements EmbeddingModel {
+public class QwenEmbeddingModel extends DimensionAwareEmbeddingModel {
+
     public static final String TYPE_KEY = "type";
     public static final String TYPE_QUERY = "query";
     public static final String TYPE_DOCUMENT = "document";
@@ -34,13 +35,13 @@ public class QwenEmbeddingModel implements EmbeddingModel {
     private final TextEmbedding embedding;
 
     @Builder
-    public QwenEmbeddingModel(String apiKey, String modelName) {
+    public QwenEmbeddingModel(String baseUrl, String apiKey, String modelName) {
         if (Utils.isNullOrBlank(apiKey)) {
             throw new IllegalArgumentException("DashScope api key must be defined. It can be generated here: https://dashscope.console.aliyun.com/apiKey");
         }
         this.modelName = Utils.isNullOrBlank(modelName) ? QwenModelName.TEXT_EMBEDDING_V2 : modelName;
         this.apiKey = apiKey;
-        this.embedding = new TextEmbedding();
+        this.embedding = Utils.isNullOrBlank(baseUrl) ? new TextEmbedding() : new TextEmbedding(baseUrl);
     }
 
     private boolean containsDocuments(List<TextSegment> textSegments) {

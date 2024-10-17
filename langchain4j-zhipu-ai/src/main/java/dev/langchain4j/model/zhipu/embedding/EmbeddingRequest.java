@@ -1,75 +1,82 @@
 package dev.langchain4j.model.zhipu.embedding;
 
-import lombok.Getter;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import dev.langchain4j.internal.Utils;
 
-import java.util.Objects;
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
+import static dev.langchain4j.model.zhipu.embedding.EmbeddingModel.EMBEDDING_2;
 
-@Getter
+@JsonInclude(NON_NULL)
+@JsonNaming(SnakeCaseStrategy.class)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public final class EmbeddingRequest {
-    private final String input;
-    private final String model;
+    private String input;
+    private String model;
+    private Integer dimensions;
 
-    private EmbeddingRequest(Builder builder) {
-        this.model = builder.model;
-        this.input = builder.input;
+    public EmbeddingRequest(String input, String model, Integer dimensions) {
+        this.input = input;
+        this.model = Utils.getOrDefault(model, EMBEDDING_2.toString());
+        this.dimensions = dimensions;
     }
 
-    public static Builder builder() {
-        return new Builder();
+    public static EmbeddingRequestBuilder builder() {
+        return new EmbeddingRequestBuilder();
     }
 
-    @Override
-    public boolean equals(Object another) {
-        if (this == another) return true;
-        return another instanceof EmbeddingRequest
-                && equalTo((EmbeddingRequest) another);
+    public String getInput() {
+        return input;
     }
 
-    private boolean equalTo(EmbeddingRequest another) {
-        return Objects.equals(model, another.model)
-                && Objects.equals(input, another.input);
+    public void setInput(String input) {
+        this.input = input;
     }
 
-    @Override
-    public int hashCode() {
-        int h = 5381;
-        h += (h << 5) + Objects.hashCode(model);
-        h += (h << 5) + Objects.hashCode(input);
-        return h;
+    public String getModel() {
+        return model;
     }
 
-    @Override
-    public String toString() {
-        return "EmbeddingRequest{"
-                + "model=" + model
-                + ", input=" + input
-                + "}";
+    public void setModel(String model) {
+        this.model = model;
     }
 
-    public static final class Builder {
+    public Integer getDimensions() {
+        return dimensions;
+    }
 
-        private String model = EmbeddingModel.EMBEDDING_2.toString();
+    public void setDimensions(Integer dimensions) {
+        this.dimensions = dimensions;
+    }
+
+    public static class EmbeddingRequestBuilder {
         private String input;
+        private String model;
+        private Integer dimensions;
 
-        private Builder() {
+        EmbeddingRequestBuilder() {
         }
 
-        public Builder model(EmbeddingModel model) {
-            return model(model.toString());
-        }
-
-        public Builder model(String model) {
-            this.model = model;
-            return this;
-        }
-
-        public Builder input(String input) {
+        public EmbeddingRequestBuilder input(String input) {
             this.input = input;
             return this;
         }
 
+        public EmbeddingRequestBuilder model(String model) {
+            this.model = model;
+            return this;
+        }
+
+        public EmbeddingRequestBuilder dimensions(Integer dimensions) {
+            this.dimensions = dimensions;
+            return this;
+        }
+
         public EmbeddingRequest build() {
-            return new EmbeddingRequest(this);
+
+            return new EmbeddingRequest(this.input, this.model, this.dimensions);
         }
     }
 }

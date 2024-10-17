@@ -1,7 +1,9 @@
 # LangChain for Java: Supercharge your Java application with the power of LLMs
 
-[![](https://img.shields.io/twitter/follow/langchain4j)](https://twitter.com/intent/follow?screen_name=langchain4j)
-[![](https://dcbadge.vercel.app/api/server/JzTFvyjG6R?compact=true&style=flat)](https://discord.gg/JzTFvyjG6R)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/langchain4j/langchain4j/main.yaml?branch=main&style=for-the-badge&label=GITHUB%20ACTIONS&logo=github)](https://github.com/langchain4j/langchain4j/actions/workflows/main.yaml)
+[![Discord](https://dcbadge.vercel.app/api/server/JzTFvyjG6R?style=for-the-badge)](https://discord.gg/JzTFvyjG6R)
+[![X](https://img.shields.io/badge/@langchain4j-follow-blue?logo=x&style=for-the-badge)](https://x.com/langchain4j)
+[![Maven Version](https://img.shields.io/maven-central/v/dev.langchain4j/langchain4j?logo=apachemaven&style=for-the-badge)](https://search.maven.org/#search|gav|1|g:"dev.langchain4j"%20AND%20a:"langchain4j")
 
 
 ## Introduction
@@ -18,9 +20,9 @@ Here's how:
    LangChain4j currently supports [15+ popular LLM providers](https://docs.langchain4j.dev/integrations/language-models/)
    and [15+ embedding stores](https://docs.langchain4j.dev/integrations/embedding-stores/).
 2. **Comprehensive Toolbox:**
-   During the past year, the community has been building numerous LLM-powered applications,
+   Since early 2023, the community has been building numerous LLM-powered applications,
    identifying common abstractions, patterns, and techniques. LangChain4j has refined these into practical code.
-   Our toolbox includes tools ranging from low-level prompt templating, chat memory management, and output parsing
+   Our toolbox includes tools ranging from low-level prompt templating, chat memory management, and function calling
    to high-level patterns like AI Services and RAG.
    For each abstraction, we provide an interface along with multiple ready-to-use implementations based on common techniques.
    Whether you're building a chatbot or developing a RAG with a complete pipeline from data ingestion to retrieval,

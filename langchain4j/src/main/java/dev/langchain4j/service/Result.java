@@ -1,5 +1,7 @@
 package dev.langchain4j.service;
 
+import dev.langchain4j.service.tool.ToolExecution;
+import dev.langchain4j.model.output.FinishReason;
 import dev.langchain4j.model.output.TokenUsage;
 import dev.langchain4j.rag.content.Content;
 import lombok.Builder;
@@ -22,12 +24,16 @@ public class Result<T> {
     private final T content;
     private final TokenUsage tokenUsage;
     private final List<Content> sources;
+    private final FinishReason finishReason;
+    private final List<ToolExecution> toolExecutions;
 
     @Builder
-    public Result(T content, TokenUsage tokenUsage, List<Content> sources) {
+    public Result(T content, TokenUsage tokenUsage, List<Content> sources, FinishReason finishReason, List<ToolExecution> toolExecutions) {
         this.content = ensureNotNull(content, "content");
-        this.tokenUsage = ensureNotNull(tokenUsage, "tokenUsage");
+        this.tokenUsage = tokenUsage;
         this.sources = copyIfNotNull(sources);
+        this.finishReason = finishReason;
+        this.toolExecutions = copyIfNotNull(toolExecutions);
     }
 
     public T content() {
@@ -40,5 +46,13 @@ public class Result<T> {
 
     public List<Content> sources() {
         return sources;
+    }
+
+    public FinishReason finishReason() {
+        return finishReason;
+    }
+
+    public List<ToolExecution> toolExecutions() {
+        return toolExecutions;
     }
 }

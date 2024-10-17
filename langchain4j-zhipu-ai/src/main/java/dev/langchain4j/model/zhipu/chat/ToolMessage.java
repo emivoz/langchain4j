@@ -1,26 +1,27 @@
 package dev.langchain4j.model.zhipu.chat;
 
-import com.google.gson.annotations.SerializedName;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.ToString;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import dev.langchain4j.internal.Utils;
 
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
 import static dev.langchain4j.model.zhipu.chat.Role.TOOL;
 
-@ToString
-@EqualsAndHashCode
+@JsonInclude(NON_NULL)
+@JsonNaming(SnakeCaseStrategy.class)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public final class ToolMessage implements Message {
 
-    private final Role role = TOOL;
-    @Getter
-    @SerializedName("tool_call_id")
-    private final String toolCallId;
-    @Getter
-    private final String content;
+    private Role role;
+    private String toolCallId;
+    private String content;
 
-    private ToolMessage(Builder builder) {
-        this.toolCallId = builder.toolCallId;
-        this.content = builder.content;
+    public ToolMessage(Role role, String toolCallId, String content) {
+        this.role = Utils.getOrDefault(role, TOOL);
+        this.toolCallId = toolCallId;
+        this.content = content;
     }
 
     public static ToolMessage from(String toolCallId, String content) {
@@ -30,8 +31,8 @@ public final class ToolMessage implements Message {
                 .build();
     }
 
-    public static Builder builder() {
-        return new Builder();
+    public static ToolMessageBuilder builder() {
+        return new ToolMessageBuilder();
     }
 
     @Override
@@ -39,26 +40,48 @@ public final class ToolMessage implements Message {
         return role;
     }
 
-    public static final class Builder {
+    public void setRole(Role role) {
+        this.role = role;
+    }
 
+    public String getToolCallId() {
+        return toolCallId;
+    }
+
+    public void setToolCallId(String toolCallId) {
+        this.toolCallId = toolCallId;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+
+    public static class ToolMessageBuilder {
+        private Role role;
         private String toolCallId;
         private String content;
 
-        private Builder() {
+        public ToolMessageBuilder role(Role role) {
+            this.role = role;
+            return this;
         }
 
-        public Builder toolCallId(String toolCallId) {
+        public ToolMessageBuilder toolCallId(String toolCallId) {
             this.toolCallId = toolCallId;
             return this;
         }
 
-        public Builder content(String content) {
+        public ToolMessageBuilder content(String content) {
             this.content = content;
             return this;
         }
 
         public ToolMessage build() {
-            return new ToolMessage(this);
+            return new ToolMessage(this.role, this.toolCallId, this.content);
         }
     }
 }
