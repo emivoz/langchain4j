@@ -2,7 +2,9 @@ package dev.langchain4j.service;
 
 import dev.langchain4j.data.image.Image;
 import dev.langchain4j.data.message.ImageContent;
+import dev.langchain4j.data.message.PdfFileContent;
 import dev.langchain4j.data.message.TextContent;
+import dev.langchain4j.data.pdf.PdfFile;
 import dev.langchain4j.exception.IllegalConfigurationException;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.chat.mock.ChatModelMock;
@@ -27,6 +29,11 @@ class AiServicesUserMessageConfigTest {
 
     @Spy
     ChatLanguageModel chatLanguageModel = ChatModelMock.thatAlwaysResponds("Berlin");
+
+    private static final Image image = Image.builder().url("https://en.wikipedia.org/wiki/Llama#/media/File:Llamas,_Vernagt-Stausee,_Italy.jpg").build();
+    private static final ImageContent imageContent = ImageContent.from(image);
+    private static final PdfFile pdf = PdfFile.builder().url("https://upload.wikimedia.org/wikipedia/commons/2/20/Re_example.pdf").build();
+    private static final PdfFileContent pdfFileContent = PdfFileContent.from(pdf);
 
     @AfterEach
     void afterEach() {
@@ -65,8 +72,13 @@ class AiServicesUserMessageConfigTest {
         @UserMessage("Count the number of {{color}} cars in this image")
         String chat11(@UserMessage ImageContent imageContent, @V("color") String color);
 
-        @UserMessage("What is the capital of {{arg0}}?")
-        String chat8(String country);
+        String chat12(Image image);
+
+        String chat13(@UserMessage String userMessage, @UserMessage Image image);
+
+        String chat14(@UserMessage Image image, @UserMessage String userMessage);
+
+        String chat15(@UserMessage PdfFile pdfFile, @UserMessage String userMessage);
 
         // illegal configuration
 
@@ -202,24 +214,6 @@ class AiServicesUserMessageConfigTest {
                 .build();
 
         // when-then
-        assertThat(aiService.chat8("Germany"))
-                .containsIgnoringCase("Berlin");
-        verify(chatLanguageModel).generate(singletonList(userMessage("What is the capital of Germany?")));
-        verify(chatLanguageModel).supportedCapabilities();
-    }
-
-    private static final Image image = Image.builder().url("https://en.wikipedia.org/wiki/Llama#/media/File:Llamas,_Vernagt-Stausee,_Italy.jpg").build();
-    private static final ImageContent imageContent = ImageContent.from(image);
-
-    @Test
-    void test_user_message_configuration_8() {
-
-        // given
-        AiService aiService = AiServices.builder(AiService.class)
-                .chatLanguageModel(chatLanguageModel)
-                .build();
-
-        // when-then
         assertThat(aiService.chat8(imageContent))
                 .containsIgnoringCase("Berlin");
         verify(chatLanguageModel).generate(
@@ -230,6 +224,8 @@ class AiServicesUserMessageConfigTest {
                         ).collect(Collectors.toList())
                 ))
         );
+
+        verify(chatLanguageModel).supportedCapabilities();
     }
 
     @Test
@@ -251,6 +247,8 @@ class AiServicesUserMessageConfigTest {
                         ).collect(Collectors.toList())
                 ))
         );
+
+        verify(chatLanguageModel).supportedCapabilities();
     }
 
     @Test
@@ -273,6 +271,8 @@ class AiServicesUserMessageConfigTest {
                         ).collect(Collectors.toList())
                 ))
         );
+
+        verify(chatLanguageModel).supportedCapabilities();
     }
 
     @Test
@@ -294,6 +294,82 @@ class AiServicesUserMessageConfigTest {
                         ).collect(Collectors.toList())
                 ))
         );
+
+        verify(chatLanguageModel).supportedCapabilities();
+    }
+
+    @Test
+    void test_user_message_configuration_12() {
+
+        // given
+        AiService aiService = AiServices.builder(AiService.class)
+                .chatLanguageModel(chatLanguageModel)
+                .build();
+
+        // when-then
+        assertThat(aiService.chat12(image))
+                .containsIgnoringCase("Berlin");
+        verify(chatLanguageModel).generate(singletonList(userMessage(imageContent)));
+        verify(chatLanguageModel).supportedCapabilities();
+
+    }
+
+    @Test
+    void test_user_message_configuration_13() {
+
+        // given
+        AiService aiService = AiServices.builder(AiService.class)
+                .chatLanguageModel(chatLanguageModel)
+                .build();
+
+        // when-then
+        assertThat(aiService.chat13("What's on this image?", image))
+                .containsIgnoringCase("Berlin");
+        verify(chatLanguageModel).generate(singletonList(userMessage(
+                TextContent.from("What's on this image?"),
+                imageContent
+        )));
+
+        verify(chatLanguageModel).supportedCapabilities();
+
+    }
+
+    @Test
+    void test_user_message_configuration_14() {
+
+        // given
+        AiService aiService = AiServices.builder(AiService.class)
+                .chatLanguageModel(chatLanguageModel)
+                .build();
+
+        // when-then
+        assertThat(aiService.chat14(image, "What's on this image?"))
+                .containsIgnoringCase("Berlin");
+        verify(chatLanguageModel).generate(singletonList(userMessage(
+                TextContent.from("What's on this image?"),
+                imageContent
+        )));
+
+        verify(chatLanguageModel).supportedCapabilities();
+    }
+
+    @Test
+    void test_user_message_configuration_15() {
+
+        // given
+        AiService aiService = AiServices.builder(AiService.class)
+                .chatLanguageModel(chatLanguageModel)
+                .build();
+
+        // when-then
+        assertThat(aiService.chat15(pdf, "What's on this PDF?"))
+                .containsIgnoringCase("Berlin");
+        verify(chatLanguageModel).generate(singletonList(userMessage(
+                TextContent.from("What's on this PDF?"),
+                pdfFileContent
+        )));
+
+        verify(chatLanguageModel).supportedCapabilities();
     }
 
     @Test

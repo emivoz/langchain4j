@@ -2,10 +2,13 @@ package dev.langchain4j.service;
 
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.data.audio.Audio;
 import dev.langchain4j.data.message.*;
 import dev.langchain4j.data.image.Image;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.data.pdf.PdfFile;
+import dev.langchain4j.data.video.Video;
 import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.ResponseFormat;
@@ -141,15 +144,6 @@ class DefaultAiServices<T> extends AiServices<T> {
                         if (supportsJsonSchema && !streaming) {
                             jsonSchema = jsonSchemaFrom(returnType);
                         }
-
-
-                        if (userMessage.contents().stream().filter(content -> content instanceof TextContent).count() > 1) {
-                            throw illegalConfiguration("Error: The method '%s' has multiple text contents. Please use only one.", method.getName());
-                        }
-                        if (userMessage.contents().size() > 1 && !(userMessage.contents().get(0) instanceof TextContent)) {
-                            throw illegalConfiguration("Error: The first content should be text content.", method.getName());
-                        }
-
 
                         if ((!supportsJsonSchema || !jsonSchema.isPresent()) && !streaming) {
                             // TODO append after storing in the memory?
@@ -325,10 +319,12 @@ class DefaultAiServices<T> extends AiServices<T> {
 
                     private UserMessage appendOutputFormatInstructions(Type returnType, UserMessage userMessage) {
                         String outputFormatInstructions = serviceOutputParser.outputFormatInstructions(returnType);
-                        String text = userMessage.singleText() + outputFormatInstructions;
-                        TextContent textContent = TextContent.from(text);
-                        List<Content> contents = userMessage.contents().subList(1, userMessage.contents().size());
-                        contents.addFirst(textContent);
+                        List<Content> contents = userMessage.contents();
+
+                        if(isNotNullOrBlank(outputFormatInstructions)) {
+                            Content textContent = TextContent.from(outputFormatInstructions);
+                            contents = Stream.concat(Stream.of(textContent), contents.stream()).collect(Collectors.toList());
+                        }
 
                         if (isNotNullOrBlank(userMessage.name())) {
                             userMessage = UserMessage.from(userMessage.name(), contents);
@@ -421,43 +417,93 @@ class DefaultAiServices<T> extends AiServices<T> {
     }
 
     private static UserMessage prepareUserMessage(Method method, Object[] args) {
-        String template = getUserMessageTemplate(method, args);
+        Optional<String> maybeTemplate = getUserMessageTemplate(method, args);
         List<Content> imageContent = findImagesContentInParameters(method, args);
         Optional<String> maybeUserName = findUserName(method.getParameters(), args);
 
-        Map<String, Object> variables = findTemplateVariables(template, method, args);
 
-        Prompt prompt = PromptTemplate.from(template).apply(variables);
-        return maybeUserName.map(userName -> UserMessage.from(userName, promptAndImages(prompt, imageContent)))
-                .orElseGet(() -> UserMessage.from(promptAndImages(prompt, imageContent)));
+        if(imageContent.isEmpty() && maybeTemplate.isEmpty()) {
+            throw illegalConfiguration("Error: The method '%s' does not have a user message defined.", method.getName());
+        }
+
+        if(maybeTemplate.isPresent()) {
+            Map<String, Object> variables = findTemplateVariables(maybeTemplate.get(), method, args);
+            Prompt prompt = PromptTemplate.from(maybeTemplate.get()).apply(variables);
+
+            return maybeUserName.map(userName -> UserMessage.from(userName, promptAndContents(prompt, imageContent)))
+                    .orElseGet(() -> UserMessage.from(promptAndContents(prompt, imageContent)));
+        } else {
+
+            return maybeUserName.map(userName -> UserMessage.from(userName, imageContent))
+                    .orElseGet(() -> UserMessage.from( imageContent));
+        }
+
+
     }
 
-    private static List<Content> promptAndImages(Prompt prompt, List<Content> imageContent) {
-        return Stream.concat(Stream.of(TextContent.from(prompt.text())), imageContent.stream())
+    private static List<Content> promptAndContents(Prompt prompt, List<Content> contents) {
+        return Stream.concat(Stream.of(TextContent.from(prompt.text())), contents.stream())
                 .collect(Collectors.toList());
     }
 
     private static List<Content> findImagesContentInParameters(Method method, Object[] args) {
         return Arrays.stream(method.getParameters())
-                .filter(DefaultAiServices::isImageParameter)
+                .filter(DefaultAiServices::isAttachmentContent)
                 .map(parameter -> {
                     Object arg = args[Arrays.asList(method.getParameters()).indexOf(parameter)];
-                    if (arg instanceof Image) {
-                        return ImageContent.from((Image) arg);
-                    } else {
-                        return (ImageContent) arg;
-                    }
+                    return extractContentType(arg);
                 })
                 .collect(Collectors.toList());
     }
 
+    private static Content extractContentType(Object arg) {
+        if (arg instanceof Image) {
+            return ImageContent.from((Image) arg);
+        } else if (arg instanceof ImageContent) {
+            return (ImageContent) arg;
+        } else if (arg instanceof PdfFile) {
+            return PdfFileContent.from((PdfFile) arg);
+        } else if (arg instanceof PdfFileContent) {
+            return (PdfFileContent) arg;
+        } else if (arg instanceof Video) {
+            return VideoContent.from((Video) arg);
+        } else if (arg instanceof VideoContent) {
+            return (VideoContent) arg;
+        } else if (arg instanceof Audio) {
+            return AudioContent.from((Audio) arg);
+        } else if (arg instanceof AudioContent) {
+            return (AudioContent) arg;
+        } else {
+            throw new IllegalArgumentException("Unsupported argument type: " + arg.getClass());
+        }
+    }
+
+    private static boolean isAttachmentContent(Parameter parameter) {
+        return isImageParameter(parameter)
+                || isAudioParameter(parameter) || isPdfParameter(parameter) || isVideoParameter(parameter);
+    }
+
     private static boolean isImageParameter(Parameter parameter) {
-        return parameter.isAnnotationPresent(dev.langchain4j.service.UserMessage.class) &&
-                (parameter.getType().equals(Image.class)
+        return (parameter.getType().equals(Image.class)
                         || parameter.getType().equals(ImageContent.class));
     }
 
-    private static String getUserMessageTemplate(Method method, Object[] args) {
+    private static boolean isPdfParameter(Parameter parameter) {
+        return (parameter.getType().equals(PdfFile.class)
+                || parameter.getType().equals(PdfFileContent.class));
+    }
+
+    private static boolean isVideoParameter(Parameter parameter) {
+        return (parameter.getType().equals(Video.class)
+                || parameter.getType().equals(VideoContent.class));
+    }
+
+    private static boolean isAudioParameter(Parameter parameter) {
+        return (parameter.getType().equals(Audio.class)
+                || parameter.getType().equals(AudioContent.class));
+    }
+
+    private static Optional<String> getUserMessageTemplate(Method method, Object[] args) {
 
         Optional<String> templateFromMethodAnnotation = findUserMessageTemplateFromMethodAnnotation(method);
         Optional<String> templateFromParameterAnnotation = findUserMessageTemplateFromAnnotatedParameter(method.getParameters(), args);
@@ -472,18 +518,14 @@ class DefaultAiServices<T> extends AiServices<T> {
         }
 
         if (templateFromMethodAnnotation.isPresent()) {
-            return templateFromMethodAnnotation.get();
+            return templateFromMethodAnnotation;
         }
         if (templateFromParameterAnnotation.isPresent()) {
-            return templateFromParameterAnnotation.get();
+            return templateFromParameterAnnotation;
         }
 
-        Optional<String> templateFromTheOnlyArgument = findUserMessageTemplateFromTheOnlyArgument(method.getParameters(), args);
-        if (templateFromTheOnlyArgument.isPresent()) {
-            return templateFromTheOnlyArgument.get();
-        }
+        return findUserMessageTemplateFromTheOnlyArgument(method.getParameters(), args);
 
-        throw illegalConfiguration("Error: The method '%s' does not have a user message defined.", method.getName());
     }
 
     private static Optional<String> findUserMessageTemplateFromMethodAnnotation(Method method) {
@@ -493,7 +535,7 @@ class DefaultAiServices<T> extends AiServices<T> {
 
     private static Optional<String> findUserMessageTemplateFromAnnotatedParameter(Parameter[] parameters, Object[] args) {
         for (int i = 0; i < parameters.length; i++) {
-            if (parameters[i].isAnnotationPresent(dev.langchain4j.service.UserMessage.class)) {
+            if (parameters[i].isAnnotationPresent(dev.langchain4j.service.UserMessage.class) && !isAttachmentContent(parameters[i])) {
                 return Optional.of(toString(args[i]));
             }
         }
@@ -501,7 +543,7 @@ class DefaultAiServices<T> extends AiServices<T> {
     }
 
     private static Optional<String> findUserMessageTemplateFromTheOnlyArgument(Parameter[] parameters, Object[] args) {
-        if (parameters != null && parameters.length == 1 && parameters[0].getAnnotations().length == 0) {
+        if (parameters != null && parameters.length == 1 && parameters[0].getAnnotations().length == 0 && !isAttachmentContent(parameters[0])) {
             return Optional.of(toString(args[0]));
         }
         return Optional.empty();
